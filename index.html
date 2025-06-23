@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gyroscope Cube with Three.js</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      color: white;
+      font-family: sans-serif;
+    }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1;
+      background: rgba(0,0,0,0.6);
+      padding: 1em;
+      border-radius: 10px;
+    }
+    #permissionButton {
+      display: none;
+      margin-top: 10px;
+      padding: 0.5em 1em;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <div><strong>Gyroscope Cube Demo</strong></div>
+    <div id="status">Waiting...</div>
+    <button id="permissionButton">Enable Motion Access</button>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+  <script>
+    const statusEl = document.getElementById('status');
+    const permissionButton = document.getElementById('permissionButton');
+
+    let rotationX = 0, rotationY = 0, rotationZ = 0;
+
+    // --- three.js scene ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 3;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const geometry = new THREE.BoxGeometry();
+    const material = new THREE.MeshNormalMaterial({ wireframe: false });
+    const cube = new THREE.Mesh(geometry, material);
+    scene.add(cube);
+
+    function animate() {
+      requestAnimationFrame(animate);
+      cube.rotation.x = rotationX;
+      cube.rotation.y = rotationY;
+      cube.rotation.z = rotationZ;
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // --- motion listener ---
+    function startMotionListener() {
+      window.addEventListener('devicemotion', (event) => {
+        const rot = event.rotationRate;
+        if (!rot) return;
+
+        // convert degrees/sec to radians
+        const factor = Math.PI / 180;
+        rotationX += (rot.beta || 0) * factor * 0.01;
+        rotationY += (rot.gamma || 0) * factor * 0.01;
+        rotationZ += (rot.alpha || 0) * factor * 0.01;
+
+        statusEl.textContent =
+          `alpha(Z): ${rot.alpha?.toFixed(1)}°/s\n` +
+          `beta(X): ${rot.beta?.toFixed(1)}°/s\n` +
+          `gamma(Y): ${rot.gamma?.toFixed(1)}°/s`;
+      });
+    }
+
+    function isIOS() {
+      return /iP(hone|od|ad)/.test(navigator.userAgent);
+    }
+
+    function init() {
+      if (typeof DeviceMotionEvent === 'undefined') {
+        statusEl.textContent = 'DeviceMotionEvent not supported.';
+        return;
+      }
+
+      if (isIOS() && typeof DeviceMotionEvent.requestPermission === 'function') {
+        // iOS 13+ 必须用户点击按钮触发权限请求
+        permissionButton.style.display = 'inline-block';
+        permissionButton.addEventListener('click', async () => {
+          try {
+            const resp = await DeviceMotionEvent.requestPermission();
+            if (resp === 'granted') {
+              statusEl.textContent = 'Permission granted. Listening...';
+              startMotionListener();
+              permissionButton.style.display = 'none';
+            } else {
+              statusEl.textContent = 'Permission denied.';
+            }
+          } catch (err) {
+            statusEl.textContent = 'Error: ' + err;
+          }
+        });
+      } else {
+        statusEl.textContent = 'Listening for motion...';
+        startMotionListener();
+      }
+    }
+
+    window.addEventListener('load', init);
+  </script>
+</body>
+</html>
